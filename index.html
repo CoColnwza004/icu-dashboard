@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ICU Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --surface2: #1a2233;
+    --border: #1e2d45;
+    --accent: #00c8ff;
+    --accent2: #00ff9d;
+    --warn: #ff9500;
+    --danger: #ff3b5c;
+    --text: #e8f0fe;
+    --muted: #6b7a99;
+    --grid: #0d1525;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100vh; overflow: hidden;
+    background: var(--bg);
+    font-family: 'IBM Plex Sans Thai', sans-serif;
+    color: var(--text);
+    font-size: 13px;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column;
+    height: 100vh;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .logo-dot {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: linear-gradient(135deg, var(--accent), #0040ff);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+  }
+  .title-block h1 {
+    font-size: 15px; font-weight: 700; letter-spacing: 0.03em;
+    color: #fff;
+  }
+  .title-block p { font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .month-selector {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 8px;
+  }
+  .month-selector label { font-size: 10px; color: var(--muted); }
+  .month-selector select {
+    background: transparent; border: none; color: var(--text);
+    font-family: inherit; font-size: 12px; cursor: pointer;
+    outline: none;
+  }
+  .live-badge {
+    display: flex; align-items: center; gap: 5px;
+    background: rgba(0,255,157,0.1); border: 1px solid rgba(0,255,157,0.3);
+    border-radius: 20px; padding: 3px 10px;
+    font-size: 10px; color: var(--accent2); font-weight: 600;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* ── MONTH TABS ── */
+  .month-tabs {
+    display: flex; gap: 3px; flex-shrink: 0;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 3px;
+  }
+  .tab {
+    flex: 1; text-align: center; padding: 4px 2px;
+    border-radius: 5px; cursor: pointer;
+    font-size: 10px; color: var(--muted);
+    transition: all 0.2s;
+  }
+  .tab.active {
+    background: var(--accent); color: #000; font-weight: 700;
+  }
+  .tab:hover:not(.active) { background: var(--border); color: var(--text); }
+
+  /* ── MAIN GRID ── */
+  .main-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+    gap: 8px;
+    min-height: 0;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex; flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: rgba(0,200,255,0.3); }
+  .card-label {
+    font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); font-weight: 600;
+  }
+  .card-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 26px; font-weight: 600;
+    line-height: 1;
+    color: #fff;
+  }
+  .card-value.accent { color: var(--accent); }
+  .card-value.success { color: var(--accent2); }
+  .card-value.warn { color: var(--warn); }
+  .card-value.danger { color: var(--danger); }
+  .card-sub { font-size: 10px; color: var(--muted); }
+  .card-trend {
+    display: flex; align-items: center; gap: 3px;
+    font-size: 10px;
+  }
+  .trend-up { color: var(--accent2); }
+  .trend-down { color: var(--danger); }
+  .trend-neutral { color: var(--muted); }
+
+  /* ── CHART CARD (span 1 col, row 1–2) ── */
+  .chart-card {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    display: flex; flex-direction: column;
+  }
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 4px;
+  }
+  .chart-area { flex: 1; position: relative; min-height: 0; }
+  svg.bar-chart { width: 100%; height: 100%; }
+
+  /* ── INCIDENT GRID (row 3, all cols) ── */
+  .incident-row {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+  }
+  .incident-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    display: flex; flex-direction: column;
+    gap: 4px;
+    transition: border-color 0.2s;
+  }
+  .incident-card:hover { border-color: rgba(255,149,0,0.4); }
+  .incident-label {
+    font-size: 9px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--muted); font-weight: 600;
+  }
+  .incident-value {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px; font-weight: 600; color: #fff;
+  }
+  .incident-rate { font-size: 10px; color: var(--muted); }
+  .incident-bar {
+    height: 3px; border-radius: 2px;
+    background: var(--border); margin-top: 2px; overflow: hidden;
+  }
+  .incident-fill { height: 100%; border-radius: 2px; }
+
+  /* ── BOR GAUGE ── */
+  .bor-card {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 4px;
+  }
+  .gauge-wrap { position: relative; width: 90px; height: 50px; }
+  .gauge-wrap svg { width: 90px; height: 50px; }
+  .gauge-value {
+    position: absolute; bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px; font-weight: 700; color: var(--accent);
+    white-space: nowrap;
+  }
+
+  /* ── MINI SPARKLINE ── */
+  .sparkline-area { flex: 1; }
+
+  /* ── PRODUCTIVITY ── */
+  .prod-card {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    display: flex; flex-direction: column;
+  }
+  .prod-list { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .prod-item { display: flex; flex-direction: column; gap: 3px; }
+  .prod-row { display: flex; justify-content: space-between; align-items: center; }
+  .prod-name { font-size: 10px; color: var(--text); }
+  .prod-val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px; font-weight: 600;
+  }
+  .bar-bg {
+    height: 4px; background: var(--border);
+    border-radius: 2px; overflow: hidden;
+  }
+  .bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+  /* ── ALOS / ADC ── */
+  .stat-pair {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .stat-split {
+    display: flex; gap: 8px; height: 100%;
+  }
+  .stat-half {
+    flex: 1; display: flex; flex-direction: column;
+    background: var(--surface2); border-radius: 8px;
+    padding: 8px; gap: 3px;
+  }
+
+  /* scrollbar hide */
+  ::-webkit-scrollbar { display: none; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-dot">🏥</div>
+      <div class="title-block">
+        <h1>ICU Dashboard · Intensive Care Unit</h1>
+        <p>โรงพยาบาล — หน่วยผู้ป่วยหนัก | ข้อมูลประจำปี 2568</p>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    </div>
+  </div>
+
+  <!-- MONTH TABS -->
+  <div class="month-tabs" id="monthTabs">
+    <div class="tab" data-m="0">ม.ค.</div>
+    <div class="tab" data-m="1">ก.พ.</div>
+    <div class="tab" data-m="2">มี.ค.</div>
+    <div class="tab" data-m="3">เม.ย.</div>
+    <div class="tab active" data-m="4">พ.ค.</div>
+    <div class="tab" data-m="5">มิ.ย.</div>
+    <div class="tab" data-m="6">ก.ค.</div>
+    <div class="tab" data-m="7">ส.ค.</div>
+    <div class="tab" data-m="8">ก.ย.</div>
+    <div class="tab" data-m="9">ต.ค.</div>
+    <div class="tab" data-m="10">พ.ย.</div>
+    <div class="tab" data-m="11">ธ.ค.</div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- CHART: จำนวนผู้ป่วยรายเดือน + วันนอนรวม -->
+    <div class="card chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="card-label">จำนวนผู้ป่วยรายเดือน & วันนอนรวม</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;color:#fff;margin-top:2px" id="totalPt">—</div>
+          <div class="card-sub">ผู้ป่วยสะสม (ม.ค.–ปัจจุบัน) · วันนอนรวม: <span id="totalBed">—</span> วัน</div>
+        </div>
+        <div style="text-align:right">
+          <div style="display:flex;gap:12px;align-items:center;font-size:9px;color:var(--muted)">
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--accent)"></span>ผู้ป่วย</span>
+            <span style="display:flex;align-items:center;gap:4px"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgba(0,255,157,0.6)"></span>วันนอน</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <svg class="bar-chart" id="barChart" viewBox="0 0 560 160" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </div>
+
+    <!-- BOR% -->
+    <div class="card bor-card">
+      <div class="card-label">BOR %</div>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 90 50" id="gaugeSvg">
+          <path d="M10,45 A35,35 0 0,1 80,45" fill="none" stroke="#1e2d45" stroke-width="8" stroke-linecap="round"/>
+          <path d="M10,45 A35,35 0 0,1 80,45" fill="none" stroke="url(#gaugeGrad)" stroke-width="8" stroke-linecap="round" id="gaugeArc" stroke-dasharray="0 110"/>
+          <defs>
+            <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#00ff9d"/>
+              <stop offset="60%" stop-color="#00c8ff"/>
+              <stop offset="100%" stop-color="#ff3b5c"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="gauge-value" id="borVal">—%</div>
+      </div>
+      <div class="card-trend" id="borTrend"></div>
+      <div class="card-sub">เป้าหมาย 75–85%</div>
+    </div>
+
+    <!-- ALOS + ADC -->
+    <div class="card stat-pair" style="padding:0;background:transparent;border:none;">
+      <div class="stat-split">
+        <div class="stat-half">
+          <div class="card-label">ALOS</div>
+          <div class="card-value accent" id="alosVal">—</div>
+          <div class="card-sub">วัน / ราย</div>
+          <div class="card-trend" id="alosTrend"></div>
+        </div>
+        <div class="stat-half">
+          <div class="card-label">ADC</div>
+          <div class="card-value success" id="adcVal">—</div>
+          <div class="card-sub">ผู้ป่วยเฉลี่ย/วัน</div>
+          <div class="card-trend" id="adcTrend"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCTIVITY + NHPPD + OT -->
+    <div class="card prod-card">
+      <div class="card-label">Productivity & Workforce</div>
+      <div class="prod-list" id="prodList"></div>
+    </div>
+
+    <!-- E-UP อุบัติการณ์ -->
+    <div class="card" style="grid-column:1;grid-row:auto">
+      <div class="card-label">E-up อุบัติการณ์</div>
+      <div class="card-value warn" id="eupVal">—</div>
+      <div class="card-sub">ครั้ง / เดือน</div>
+      <div class="card-trend" id="eupTrend"></div>
+    </div>
+
+    <!-- INCIDENT ROW -->
+    <div class="incident-row" id="incidentRow"></div>
+
+  </div>
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────
+const API_URL = 'https://script.google.com/macros/s/AKfycbx0NSYpdhCOyTlMuMV4UpBrSZkouoc13w5Gk0P3Ld-AMh8way7hjXJdcfVVJ8xWI1PFdw/exec';
+
+const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+// ข้อมูล fallback (ใช้ถ้า Sheet ยังไม่มีข้อมูล)
+const fallbackData = [
+  { pt:38, bed:245, bor:78.9, alos:6.4, adc:7.9, eup:2, hap:1, vap:2, phle:3, pi:1, med:2, prod:88, nhppd:15.2, ot:24 },
+  { pt:33, bed:218, bor:77.2, alos:6.6, adc:7.8, eup:1, hap:1, vap:1, phle:2, pi:0, med:1, prod:86, nhppd:14.8, ot:18 },
+  { pt:41, bed:267, bor:86.0, alos:6.5, adc:8.6, eup:3, hap:2, vap:2, phle:4, pi:2, med:3, prod:91, nhppd:15.5, ot:32 },
+  { pt:36, bed:234, bor:78.0, alos:6.5, adc:7.8, eup:2, hap:0, vap:1, phle:3, pi:1, med:1, prod:87, nhppd:14.9, ot:20 },
+  { pt:44, bed:289, bor:93.2, alos:6.6, adc:9.3, eup:4, hap:2, vap:3, phle:5, pi:2, med:4, prod:93, nhppd:15.8, ot:40 },
+  { pt:39, bed:255, bor:85.0, alos:6.5, adc:8.5, eup:2, hap:1, vap:2, phle:3, pi:1, med:2, prod:89, nhppd:15.1, ot:28 },
+  { pt:42, bed:271, bor:87.4, alos:6.5, adc:8.7, eup:3, hap:1, vap:2, phle:4, pi:1, med:2, prod:90, nhppd:15.3, ot:30 },
+  { pt:40, bed:259, bor:83.5, alos:6.5, adc:8.4, eup:2, hap:2, vap:1, phle:3, pi:2, med:3, prod:88, nhppd:15.0, ot:26 },
+  { pt:37, bed:243, bor:81.0, alos:6.6, adc:8.1, eup:2, hap:1, vap:1, phle:3, pi:1, med:1, prod:87, nhppd:14.8, ot:22 },
+  { pt:43, bed:278, bor:89.7, alos:6.5, adc:9.0, eup:3, hap:2, vap:2, phle:4, pi:2, med:3, prod:92, nhppd:15.6, ot:36 },
+  { pt:38, bed:247, bor:82.3, alos:6.5, adc:8.2, eup:2, hap:1, vap:1, phle:3, pi:1, med:2, prod:88, nhppd:15.0, ot:24 },
+  { pt:40, bed:261, bor:84.2, alos:6.5, adc:8.4, eup:2, hap:1, vap:2, phle:3, pi:1, med:2, prod:89, nhppd:15.1, ot:28 },
+];
+
+let data = new Array(12).fill(null).map((_, i) => ({ ...fallbackData[i] }));
+let currentMonth = new Date().getMonth(); // เดือนปัจจุบันอัตโนมัติ
+
+// ── LOADING STATE ─────────────────────────────────────────────────────
+function setLoading(on) {
+  const badge = document.querySelector('.live-badge');
+  if (on) {
+    badge.innerHTML = `<div class="live-dot" style="background:#ff9500"></div>กำลังโหลด...`;
+    badge.style.borderColor = 'rgba(255,149,0,0.3)';
+    badge.style.color = '#ff9500';
+  } else {
+    badge.innerHTML = `<div class="live-dot"></div>LIVE`;
+    badge.style.borderColor = 'rgba(0,255,157,0.3)';
+    badge.style.color = 'var(--accent2)';
+  }
+}
+
+function setError(msg) {
+  const badge = document.querySelector('.live-badge');
+  badge.innerHTML = `⚠️ ${msg}`;
+  badge.style.borderColor = 'rgba(255,59,92,0.3)';
+  badge.style.color = '#ff3b5c';
+}
+
+// ── FETCH FROM GOOGLE SHEETS ──────────────────────────────────────────
+async function fetchSheetData() {
+  setLoading(true);
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const raw = await res.json();
+
+    if (!Array.isArray(raw) || raw.length === 0) {
+      setError('Sheet ว่างเปล่า');
+      setLoading(false);
+      return;
+    }
+
+    // แมปข้อมูลจาก Sheet เข้า array 12 เดือน (index = month - 1)
+    const newData = new Array(12).fill(null).map((_, i) => ({ ...fallbackData[i] }));
+    raw.forEach(row => {
+      const m = parseInt(row.month);
+      if (m >= 1 && m <= 12) {
+        newData[m - 1] = {
+          pt:    parseFloat(row.pt)    || 0,
+          bed:   parseFloat(row.bed)   || 0,
+          bor:   parseFloat(row.bor)   || 0,
+          alos:  parseFloat(row.alos)  || 0,
+          adc:   parseFloat(row.adc)   || 0,
+          eup:   parseFloat(row.eup)   || 0,
+          hap:   parseFloat(row.hap)   || 0,
+          vap:   parseFloat(row.vap)   || 0,
+          phle:  parseFloat(row.phle)  || 0,
+          pi:    parseFloat(row.pi)    || 0,
+          med:   parseFloat(row.med)   || 0,
+          prod:  parseFloat(row.prod)  || 0,
+          nhppd: parseFloat(row.nhppd) || 0,
+          ot:    parseFloat(row.ot)    || 0,
+        };
+      }
+    });
+
+    data = newData;
+    renderAll(currentMonth);
+    setLoading(false);
+  } catch (err) {
+    console.error(err);
+    setError('โหลดไม่ได้ · ใช้ข้อมูลสำรอง');
+    renderAll(currentMonth);
+  }
+}
+
+// ── RENDER FUNCTIONS ──────────────────────────────────────────────────
+function trendHtml(curr, prev, unit='', lowerBetter=false) {
+  const diff = curr - prev;
+  const pct = ((diff/prev)*100).toFixed(1);
+  if (Math.abs(diff) < 0.01) return `<span class="trend-neutral">— ทรงตัว</span>`;
+  const up = diff > 0;
+  const good = lowerBetter ? !up : up;
+  const cls = good ? 'trend-up' : 'trend-down';
+  const arrow = up ? '▲' : '▼';
+  return `<span class="${cls}">${arrow} ${Math.abs(diff).toFixed(1)}${unit} (${Math.abs(pct)}%)</span>`;
+}
+
+function renderBorGauge(pct) {
+  const total = 110; // arc length
+  const filled = (pct / 100) * total;
+  document.getElementById('gaugeArc').setAttribute('stroke-dasharray', `${filled} ${total}`);
+  document.getElementById('borVal').textContent = pct.toFixed(1) + '%';
+}
+
+function renderBarChart(activeM) {
+  const svg = document.getElementById('barChart');
+  const W = 560, H = 160;
+  const pad = { l: 30, r: 10, t: 10, b: 30 };
+  const chartW = W - pad.l - pad.r;
+  const chartH = H - pad.t - pad.b;
+  const n = 12;
+  const bw = chartW / n;
+  const maxPt = Math.max(...data.map(d => d.pt)) * 1.15;
+  const maxBed = Math.max(...data.map(d => d.bed)) * 1.15;
+
+  let html = '';
+  data.forEach((d, i) => {
+    const x = pad.l + i * bw;
+    const barW = bw * 0.35;
+    const gap = bw * 0.08;
+    const ptH = (d.pt / maxPt) * chartH;
+    const bedH = (d.bed / maxBed) * chartH;
+    const ptX = x + gap;
+    const bedX = x + gap + barW + gap;
+    const active = i === activeM;
+    const ptColor = active ? '#00c8ff' : 'rgba(0,200,255,0.3)';
+    const bedColor = active ? 'rgba(0,255,157,0.8)' : 'rgba(0,255,157,0.2)';
+    html += `<rect x="${ptX}" y="${pad.t + chartH - ptH}" width="${barW}" height="${ptH}" rx="2" fill="${ptColor}"/>`;
+    html += `<rect x="${bedX}" y="${pad.t + chartH - bedH}" width="${barW}" height="${bedH}" rx="2" fill="${bedColor}"/>`;
+    // label
+    const lx = x + bw / 2;
+    html += `<text x="${lx}" y="${H - 8}" text-anchor="middle" fill="${active ? '#fff' : '#6b7a99'}" font-size="9" font-family="IBM Plex Sans Thai">${months[i]}</text>`;
+    if (active) {
+      html += `<text x="${ptX + barW/2}" y="${pad.t + chartH - ptH - 4}" text-anchor="middle" fill="#00c8ff" font-size="9" font-weight="600">${d.pt}</text>`;
+    }
+  });
+
+  // Y axis lines
+  for (let v = 0; v <= maxPt; v += 10) {
+    const yy = pad.t + chartH - (v / maxPt) * chartH;
+    html = `<line x1="${pad.l}" y1="${yy}" x2="${W - pad.r}" y2="${yy}" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>` + html;
+    html = `<text x="${pad.l - 4}" y="${yy + 3}" text-anchor="end" fill="#6b7a99" font-size="8">${v}</text>` + html;
+  }
+
+  svg.innerHTML = html;
+}
+
+function renderIncidents(m, prev) {
+  const d = data[m];
+  const p = data[prev];
+  const incidents = [
+    { key:'hap', label:'HAP', unit:'ครั้ง', max:5, color:'#ff9500' },
+    { key:'vap', label:'VAP', unit:'ครั้ง', max:5, color:'#ff3b5c' },
+    { key:'phle', label:'Phlebitis', unit:'ครั้ง', max:8, color:'#a78bfa' },
+    { key:'pi', label:'Pressure Injury', unit:'ราย', max:4, color:'#fb7185' },
+    { key:'med', label:'Med Error', unit:'ครั้ง', max:6, color:'#fbbf24' },
+  ];
+  const row = document.getElementById('incidentRow');
+  row.innerHTML = incidents.map(inc => {
+    const val = d[inc.key];
+    const pval = p[inc.key];
+    const pct = Math.min((val / inc.max) * 100, 100);
+    const diff = val - pval;
+    const arrow = diff > 0 ? `<span style="color:#ff3b5c">▲${diff}</span>` : diff < 0 ? `<span style="color:#00ff9d">▼${Math.abs(diff)}</span>` : `<span style="color:#6b7a99">—</span>`;
+    const rateText = val === 0 ? '<span style="color:#00ff9d">✓ ไม่พบ</span>' : `${val} ${inc.unit}`;
+    return `
+      <div class="incident-card">
+        <div class="incident-label">${inc.label}</div>
+        <div class="incident-value">${val}</div>
+        <div class="incident-rate">${rateText} ${arrow}</div>
+        <div class="incident-bar"><div class="incident-fill" style="width:${pct}%;background:${inc.color}"></div></div>
+      </div>`;
+  }).join('');
+}
+
+function renderProd(m, prev) {
+  const d = data[m];
+  const p = data[prev];
+  const items = [
+    { label: 'Productivity', val: d.prod, prev: p.prod, unit: '%', max: 100, color: '#00c8ff' },
+    { label: 'NHPPD', val: d.nhppd, prev: p.nhppd, unit: ' hr', max: 20, color: '#00ff9d' },
+    { label: 'OT Hours', val: d.ot, prev: p.ot, unit: ' hr', max: 60, color: '#ff9500', lowerBetter: true },
+  ];
+  document.getElementById('prodList').innerHTML = items.map(item => {
+    const pct = (item.val / item.max) * 100;
+    const diff = item.val - item.prev;
+    const good = item.lowerBetter ? diff <= 0 : diff >= 0;
+    const diffText = diff === 0 ? '' : `<span style="color:${good?'#00ff9d':'#ff3b5c'};font-size:9px">${diff > 0 ? '+' : ''}${diff.toFixed(1)}</span>`;
+    return `
+      <div class="prod-item">
+        <div class="prod-row">
+          <span class="prod-name">${item.label}</span>
+          <span class="prod-val" style="color:${item.color}">${item.val}${item.unit} ${diffText}</span>
+        </div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${item.color}"></div></div>
+      </div>`;
+  }).join('');
+}
+
+function renderAll(m) {
+  const d = data[m];
+  const prev = m > 0 ? m - 1 : 0;
+  const p = data[prev];
+
+  // total running
+  const cumPt = data.slice(0, m + 1).reduce((s, x) => s + x.pt, 0);
+  const cumBed = data.slice(0, m + 1).reduce((s, x) => s + x.bed, 0);
+  document.getElementById('totalPt').textContent = cumPt.toLocaleString();
+  document.getElementById('totalBed').textContent = cumBed.toLocaleString();
+
+  // BOR
+  renderBorGauge(d.bor);
+  document.getElementById('borTrend').innerHTML = trendHtml(d.bor, p.bor, '%');
+
+  // ALOS
+  document.getElementById('alosVal').textContent = d.alos.toFixed(1);
+  document.getElementById('alosTrend').innerHTML = trendHtml(d.alos, p.alos, ' วัน', true);
+
+  // ADC
+  document.getElementById('adcVal').textContent = d.adc.toFixed(1);
+  document.getElementById('adcTrend').innerHTML = trendHtml(d.adc, p.adc, '');
+
+  // E-UP
+  document.getElementById('eupVal').textContent = d.eup;
+  document.getElementById('eupTrend').innerHTML = trendHtml(d.eup, p.eup, ' ครั้ง', true);
+
+  renderBarChart(m);
+  renderIncidents(m, prev);
+  renderProd(m, prev);
+}
+
+// ── TABS ──────────────────────────────────────────────────────────────
+document.getElementById('monthTabs').querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentMonth = parseInt(tab.dataset.m);
+    renderAll(currentMonth);
+  });
+});
+
+// ── INIT ──────────────────────────────────────────────────────────────
+// ไฮไลท์ Tab เดือนปัจจุบันอัตโนมัติ
+document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+const activeTab = document.querySelector(`.tab[data-m="${currentMonth}"]`);
+if (activeTab) activeTab.classList.add('active');
+
+// โหลดข้อมูลจาก Google Sheets
+fetchSheetData();
+
+// รีเฟรชอัตโนมัติทุก 5 นาที
+setInterval(fetchSheetData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
